@@ -40,10 +40,10 @@ def parse_evolve_blocks(code: str) -> List[Tuple[int, int, str]]:
 def apply_diff(
     original_code: str,
     diff_text: str,
-    diff_pattern: str = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE",
+    diff_pattern: str = r"<{4,}\s*SEARCH\s*\n(.*?)\n={4,}\n(.*?)\n>{4,}\s*REPLACE",
 ) -> str:
     """
-    Apply a diff to the original code
+    Apply a diff to the original code with fuzzy matching
 
     Args:
         original_code: Original source code
@@ -65,30 +65,47 @@ def apply_diff(
         search_lines = search_text.split("\n")
         replace_lines = replace_text.split("\n")
 
-        # Find where the search pattern starts in the original code
+        # First attempt exact match
         for i in range(len(result_lines) - len(search_lines) + 1):
             if result_lines[i : i + len(search_lines)] == search_lines:
                 # Replace the matched section
                 result_lines[i : i + len(search_lines)] = replace_lines
                 break
+        else:
+            # Exact match failed, try fuzzy matching (threshold 0.95)
+            # Skip fuzzy matching if the search text is empty after strip
+            if not search_text.strip():
+                continue
+
+            best_match_idx = -1
+            best_similarity = 0
+
+            for i in range(len(result_lines) - len(search_lines) + 1):
+                candidate_lines = result_lines[i : i + len(search_lines)]
+                similarity = _calculate_similarity(search_lines, candidate_lines)
+
+                if similarity > best_similarity and similarity >= 0.95:
+                    best_similarity = similarity
+                    best_match_idx = i
+
+            if best_match_idx >= 0:
+                result_lines[best_match_idx : best_match_idx + len(search_lines)] = replace_lines
 
     return "\n".join(result_lines)
 
 
 def extract_diffs(
-    diff_text: str, diff_pattern: str = r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE"
+    diff_text: str,
+    # Updated regex: <{4,} matches 4 or more '<', allows spaces after SEARCH
+    diff_pattern: str = r"<{4,}\s*SEARCH\s*\n(.*?)\n={4,}\n(.*?)\n>{4,}\s*REPLACE",
 ) -> List[Tuple[str, str]]:
     """
-    Extract diff blocks from the diff text
-
-    Args:
-        diff_text: Diff in the SEARCH/REPLACE format
-        diff_pattern: Regex pattern for the SEARCH/REPLACE format
-
-    Returns:
-        List of tuples (search_text, replace_text)
+    Flexible extraction: supports 4 or more markers, handles surrounding whitespace
     """
+    # Use re.DOTALL to make . match newlines
     diff_blocks = re.findall(diff_pattern, diff_text, re.DOTALL)
+
+    # Strip results to prevent extra newlines from interfering with matches
     return [(match[0].rstrip(), match[1].rstrip()) for match in diff_blocks]
 
 
@@ -103,14 +120,15 @@ def parse_full_rewrite(llm_response: str, language: str = "python") -> Optional[
     Returns:
         Extracted code or None if not found
     """
-    code_block_pattern = r"```" + language + r"\n(.*?)```"
+    # Use a more flexible regex that allows for optional whitespace/newlines after the language tag
+    code_block_pattern = r"```" + language + r"\s*\n?(.*?)```"
     matches = re.findall(code_block_pattern, llm_response, re.DOTALL)
 
     if matches:
         return matches[0].strip()
 
     # Fallback to any code block
-    code_block_pattern = r"```(.*?)```"
+    code_block_pattern = r"```\s*\n?(.*?)```"
     matches = re.findall(code_block_pattern, llm_response, re.DOTALL)
 
     if matches:
@@ -200,6 +218,28 @@ def calculate_edit_distance(code1: str, code2: str) -> int:
             )
 
     return dp[m][n]
+
+
+def _calculate_similarity(lines1: List[str], lines2: List[str]) -> float:
+    """
+    Calculate similarity between two code blocks with whitespace normalization
+    """
+    if len(lines1) != len(lines2):
+        return 0.0
+
+    if not lines1:
+        return 1.0
+
+    matches = 0
+    for l1, l2 in zip(lines1, lines2):
+        s1 = "".join(l1.split())
+        s2 = "".join(l2.split())
+        if s1 == s2 and s1 != "":
+            matches += 1
+        elif s1 == s2 == "":
+            matches += 1
+
+    return matches / len(lines1)
 
 
 def extract_code_language(code: str) -> str:
