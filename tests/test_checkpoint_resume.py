@@ -111,8 +111,9 @@ def evaluate(program_path):
                     # Run for 0 iterations (just initialization)
                     result = await controller.run(iterations=0)
 
-                # Verify initial program was added
-                self.assertEqual(len(controller.database.programs), 1)
+                # Verify initial program was added to all islands
+                # Each island should have its own copy of the initial program
+                self.assertEqual(len(controller.database.programs), self.config.database.num_islands)
 
                 # Verify the initial program has the correct content
                 programs = list(controller.database.programs.values())

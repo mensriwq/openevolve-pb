@@ -301,7 +301,23 @@ class OpenEvolve:
                 iteration_found=start_iteration,
             )
 
-            self.database.add(initial_program)
+            # Add initial program to all islands to ensure they all start with a valid candidate
+            num_islands = self.config.database.num_islands
+            logger.info(f"Distributing initial program to all {num_islands} islands")
+            
+            # First one gets the original ID
+            self.database.add(initial_program, target_island=0)
+            
+            # Rest get copies with different IDs to avoid collision in the database
+            for i in range(1, num_islands):
+                island_initial_program = Program(
+                    id=str(uuid.uuid4()),
+                    code=self.initial_program_code,
+                    language=self.config.language,
+                    metrics=initial_metrics.copy(),
+                    iteration_found=start_iteration,
+                )
+                self.database.add(island_initial_program, target_island=i)
 
             # Check if combined_score is present in the metrics
             if "combined_score" not in initial_metrics:

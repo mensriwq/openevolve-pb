@@ -1859,6 +1859,7 @@ class ProgramDatabase:
                         generation=migrant.generation,
                         metrics=migrant.metrics.copy(),
                         metadata={**migrant.metadata, "island": target_island, "migrant": True},
+                        artifacts_json=migrant.artifacts_json,
                     )
 
                     # Use add() method to properly handle MAP-Elites deduplication,
