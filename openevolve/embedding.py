@@ -5,7 +5,7 @@ Original source: https://github.com/SakanaAI/ShinkaEvolve/blob/main/shinka/llm/e
 
 import os
 import openai
-from typing import Union, List
+from typing import Union, List, Any
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,6 +20,10 @@ OPENAI_EMBEDDING_MODELS = [
 AZURE_EMBEDDING_MODELS = [
     "azure-text-embedding-3-small",
     "azure-text-embedding-3-large",
+]
+
+GEMINI_EMBEDDING_MODELS = [
+    "gemini-embedding-001",
 ]
 
 OPENAI_EMBEDDING_COSTS = {
@@ -38,7 +42,7 @@ class EmbeddingClient:
         """
         self.client, self.model = self._get_client_model(model_name)
 
-    def _get_client_model(self, model_name: str) -> tuple[openai.OpenAI, str]:
+    def _get_client_model(self, model_name: str) -> tuple[Any, str]:
         if model_name in OPENAI_EMBEDDING_MODELS:
             # Use OPENAI_EMBEDDING_API_KEY if set, otherwise fall back to OPENAI_API_KEY
             # This allows users to use OpenRouter for LLMs while using OpenAI for embeddings
@@ -53,6 +57,13 @@ class EmbeddingClient:
                 api_version=os.getenv("AZURE_API_VERSION"),
                 azure_endpoint=os.getenv("AZURE_API_ENDPOINT"),
             )
+        elif model_name in GEMINI_EMBEDDING_MODELS:
+            # Use GEMINI_API_BASE if set, otherwise fall back to Google's OpenAI-compatible endpoint.
+            # This allows using Gemini embeddings via standard OpenAI client.
+            api_key = os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY")
+            base_url = os.getenv("GEMINI_API_BASE") or "https://generativelanguage.googleapis.com/v1beta/openai/"
+            client = openai.OpenAI(api_key=api_key, base_url=base_url)
+            model_to_use = model_name
         else:
             raise ValueError(f"Invalid embedding model: {model_name}")
 
@@ -67,8 +78,7 @@ class EmbeddingClient:
                 of strings.
 
         Returns:
-            list: Embedding vector for the code or None if an error
-                occurs.
+            list: Embedding vector for the code or an empty list if an error occurs.
         """
         if isinstance(code, str):
             code = [code]
@@ -87,6 +97,6 @@ class EmbeddingClient:
         except Exception as e:
             logger.info(f"Error getting embedding: {e}")
             if single_code:
-                return [], 0.0
+                return []
             else:
-                return [[]], 0.0
+                return [[]]

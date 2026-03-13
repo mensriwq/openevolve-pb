@@ -130,14 +130,19 @@ class OpenAILLM(LLMInterface):
             "gpt-oss-120b",
             "gpt-oss-20b",
         )
+        
+        GEMINI_MODEL_PREFIXES = (
+            "gemini-",
+        )
 
         # Check if this is an OpenAI reasoning model based on model name pattern
         # This works for all endpoints (OpenAI, Azure, OptiLLM, OpenRouter, etc.)
         model_lower = str(self.model).lower()
         is_openai_reasoning_model = model_lower.startswith(OPENAI_REASONING_MODEL_PREFIXES)
+        is_gemini_model = model_lower.startswith(GEMINI_MODEL_PREFIXES)
 
         if is_openai_reasoning_model:
-            # For OpenAI reasoning models
+            # For OpenAI reasoning models (o1, etc.) - no temperature/top_p
             params = {
                 "model": self.model,
                 "messages": formatted_messages,
@@ -149,6 +154,21 @@ class OpenAILLM(LLMInterface):
                 params["reasoning_effort"] = reasoning_effort
             if "verbosity" in kwargs:
                 params["verbosity"] = kwargs["verbosity"]
+        
+        elif is_gemini_model:
+            # For Gemini models via OpenAI compat - needs max_completion_tokens BUT supports temperature
+            params = {
+                "model": self.model,
+                "messages": formatted_messages,
+                "temperature": kwargs.get("temperature", self.temperature),
+                "top_p": kwargs.get("top_p", self.top_p),
+                "max_completion_tokens": kwargs.get("max_tokens", self.max_tokens),
+            }
+            # Handle reasoning_effort mapping (maps to thinking_level on Google)
+            reasoning_effort = kwargs.get("reasoning_effort", self.reasoning_effort)
+            if reasoning_effort is not None:
+                params["reasoning_effort"] = reasoning_effort
+            
         else:
             # Standard parameters for all other models
             params = {
