@@ -163,7 +163,7 @@ def evaluate_stage3(program_path):
 
             # Should return timeout result
             self.assertIn("error", result)
-            self.assertEqual(result["error"], 0.0)
+            self.assertEqual(result["error"], "timeout")
             self.assertIn("timeout", result)
             self.assertTrue(result["timeout"])
 
@@ -304,7 +304,7 @@ def evaluate_stage3(program_path):
 
             # Should return error result after all retries fail
             self.assertIn("error", result)
-            self.assertEqual(result["error"], 0.0)
+            self.assertEqual(result["error"], "Evaluation failed")
 
         asyncio.run(run_test())
 

@@ -262,7 +262,7 @@ class Evaluator:
                         "error_type": "timeout",
                     }
 
-                return {"error": 0.0, "timeout": True}
+                return {"error": "timeout", "timeout": True}
 
             except Exception as e:
                 last_exception = e
@@ -293,7 +293,7 @@ class Evaluator:
         logger.error(
             f"All evaluation attempts failed for program{program_id_str}. Last error: {str(last_exception)}"
         )
-        return {"error": 0.0}
+        return {"error": str(last_exception)}
 
     def _process_evaluation_result(self, result: Any) -> EvaluationResult:
         """
@@ -314,7 +314,7 @@ class Evaluator:
         else:
             # Error case - return error metrics
             logger.warning(f"Unexpected evaluation result type: {type(result)}")
-            return EvaluationResult(metrics={"error": 0.0})
+            return EvaluationResult(metrics={"error": "unexpected_result_type"})
 
     def get_pending_artifacts(self, program_id: str) -> Optional[Dict[str, Union[str, bytes]]]:
         """
@@ -400,7 +400,7 @@ class Evaluator:
             except asyncio.TimeoutError:
                 logger.warning(f"Stage 1 evaluation timed out after {self.config.timeout}s")
                 return EvaluationResult(
-                    metrics={"stage1_passed": 0.0, "error": 0.0, "timeout": True},
+                    metrics={"stage1_passed": 0.0, "error": "stage1_timeout", "timeout": True},
                     artifacts={
                         "failure_stage": "stage1",
                         "timeout": True,
@@ -411,7 +411,7 @@ class Evaluator:
                 # Capture stage 1 failure with enhanced context
                 error_context = self._create_cascade_error_context("stage1", e)
                 return EvaluationResult(
-                    metrics={"stage1_passed": 0.0, "error": 0.0},
+                    metrics={"stage1_passed": 0.0, "error": "stage1_error"},
                     artifacts={
                         "stderr": str(e),
                         "traceback": traceback.format_exc(),
@@ -539,7 +539,7 @@ class Evaluator:
             # Return proper cascade failure result with enhanced context
             error_context = self._create_cascade_error_context("cascade_setup", e)
             return EvaluationResult(
-                metrics={"stage1_passed": 0.0, "error": 0.0},
+                metrics={"stage1_passed": 0.0, "error": "cascade_setup_error"},
                 artifacts={
                     "stderr": str(e),
                     "traceback": traceback.format_exc(),
