@@ -621,6 +621,10 @@ class PromptSampler:
 
         # Process all artifacts using .items()
         for key, value in artifacts.items():
+            # Exclude large or redundant artifacts from the prompt
+            if key in ["embedding", "optimized_code", "llm_eval_prompt", "llm_eval_responses"]:
+                continue
+
             content = self._safe_decode_artifact(value)
             # Truncate if too long
             if len(content) > self.config.max_artifact_bytes:

@@ -57,8 +57,13 @@ async def run_iteration_with_shared_db(
 
         # Get island-specific top programs for prompt context (maintain island isolation)
         parent_island = parent.metadata.get("island", database.current_island)
-        island_top_programs = database.get_top_programs(5, island_idx=parent_island)
-        island_previous_programs = database.get_top_programs(3, island_idx=parent_island)
+        island_top_programs = database.get_top_programs(
+            config.prompt.num_top_programs + config.prompt.num_diverse_programs,
+            island_idx=parent_island,
+        )
+        island_previous_programs = database.get_top_programs(
+            config.prompt.num_top_programs, island_idx=parent_island
+        )
 
         # Build prompt
         if config.prompt.programs_as_changes_description:
@@ -89,10 +94,16 @@ async def run_iteration_with_shared_db(
         iteration_start = time.time()
 
         # Generate code modification
-        llm_response = await llm_ensemble.generate_with_context(
-            system_message=prompt["system"],
-            messages=[{"role": "user", "content": prompt["user"]}],
-        )
+        code_generation_start_time = time.time()
+        try:
+            llm_response = await llm_ensemble.generate_with_context(
+                system_message=prompt["system"],
+                messages=[{"role": "user", "content": prompt["user"]}],
+            )
+        finally:
+            code_generation_duration = time.time() - code_generation_start_time
+            logger.info(f"Iteration {iteration+1}: Code generation finished in {code_generation_duration:.2f}s.")
+            # We will add this to the artifacts later, once the child program is created.
 
         # Parse the response
         if config.diff_based_evolution:
@@ -184,6 +195,7 @@ async def run_iteration_with_shared_db(
             metadata={
                 "changes": changes_summary,
                 "parent_metrics": parent.metrics,
+                "island": parent_island,
             },
             prompts=(
                 {

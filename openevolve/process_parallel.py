@@ -3,6 +3,7 @@ Process-based parallel controller for true parallelism
 """
 
 import asyncio
+import json
 import logging
 import multiprocessing as mp
 import pickle
@@ -93,6 +94,14 @@ def _worker_init(config_dict: dict, evaluation_file: str, parent_env: dict = Non
     _worker_evaluator = None
     _worker_llm_ensemble = None
     _worker_prompt_sampler = None
+
+    # Set up logging for the worker process
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        root_logger.setLevel(getattr(logging, _worker_config.log_level))
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+        root_logger.addHandler(console_handler)
 
 
 def _lazy_init_worker_components():
@@ -195,21 +204,34 @@ def _run_iteration_worker(
 
         iteration_start = time.time()
 
+        # Log prompt for debugging
+        logger.debug(f"\n=== LLM Request (Iteration {iteration}) ===\nSYSTEM: {prompt['system']}\n\nUSER: {prompt['user']}\n=== End LLM Request ===")
+
         # Generate code modification (sync wrapper for async)
+        llm_response = None
+        code_generation_duration = 0
         try:
+            code_generation_start_time = time.time()
             llm_response = asyncio.run(
                 _worker_llm_ensemble.generate_with_context(
                     system_message=prompt["system"],
                     messages=[{"role": "user", "content": prompt["user"]}],
                 )
             )
+            code_generation_duration = time.time() - code_generation_start_time
+            logger.info(f"Iteration {iteration}: Code generation finished in {code_generation_duration:.2f}s.")
         except Exception as e:
-            logger.error(f"LLM generation failed: {e}")
+            logger.error(f"LLM generation failed for iteration {iteration}: {e}")
+            import traceback
+            traceback.print_exc()
             return SerializableResult(error=f"LLM generation failed: {str(e)}", iteration=iteration)
 
         # Check for None response
         if llm_response is None:
             return SerializableResult(error="LLM returned None response", iteration=iteration)
+        
+        # Log complete LLM response for debugging
+        logger.debug(f"\n=== LLM Response (Iteration {iteration}) ===\n{llm_response}\n=== End LLM Response ===")
 
         # Parse response based on evolution mode
         if _worker_config.diff_based_evolution:
@@ -342,12 +364,14 @@ class ProcessParallelController:
         database: ProgramDatabase,
         evolution_tracer=None,
         file_suffix: str = ".py",
+        history_output_dir: Optional[str] = None,
     ):
         self.config = config
         self.evaluation_file = evaluation_file
         self.database = database
         self.evolution_tracer = evolution_tracer
         self.file_suffix = file_suffix
+        self.history_output_dir = history_output_dir
 
         self.executor: Optional[ProcessPoolExecutor] = None
         self.shutdown_event = mp.Event()
@@ -568,6 +592,16 @@ class ProcessParallelController:
                         target_island=result.target_island,
                     )
 
+                    # Save to persistent history if configured
+                    if self.history_output_dir:
+                        try:
+                            os.makedirs(self.history_output_dir, exist_ok=True)
+                            history_file = os.path.join(self.history_output_dir, f"{child_program.id}.json")
+                            with open(history_file, "w") as f:
+                                json.dump(child_program.to_dict(), f)
+                        except Exception as e:
+                            logger.error(f"Failed to save program to history: {e}")
+
                     # Store artifacts
                     if result.artifacts:
                         self.database.store_artifacts(child_program.id, result.artifacts)
@@ -611,6 +645,15 @@ class ProcessParallelController:
                             responses=[result.llm_response] if result.llm_response else [],
                         )
 
+                    # Log LLM evaluation prompts/responses from worker if available
+                    if result.artifacts and "llm_eval_prompt" in result.artifacts:
+                        self.database.log_prompt(
+                            program_id=child_program.id,
+                            template_key="evaluation",
+                            prompt=result.artifacts["llm_eval_prompt"],
+                            responses=result.artifacts.get("llm_eval_responses", []),
+                        )
+                        
                     # Island management
                     # get current program island id
                     island_id = child_program.metadata.get("island", self.database.current_island)

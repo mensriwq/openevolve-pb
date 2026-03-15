@@ -327,12 +327,16 @@ class OpenEvolve:
 
         # Initialize improved parallel processing
         try:
+            # Create a persistent history directory for all evaluated programs
+            history_output_dir = os.path.join(self.output_dir, "history", "programs")
+            
             self.parallel_controller = ProcessParallelController(
                 self.config,
                 self.evaluation_file,
                 self.database,
                 self.evolution_tracer,
                 file_suffix=self.config.file_suffix,
+                history_output_dir=history_output_dir,
             )
 
             # Set up signal handlers for graceful shutdown

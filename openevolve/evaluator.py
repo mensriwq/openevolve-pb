@@ -160,12 +160,15 @@ class Evaluator:
 
             try:
                 # Run evaluation
-                if self.config.cascade_evaluation:
-                    # Run cascade evaluation
-                    result = await self._cascade_evaluate(temp_file_path)
-                else:
-                    # Run direct evaluation
-                    result = await self._direct_evaluate(temp_file_path)
+                evaluation_start_time = time.time()
+                try:
+                    if self.config.cascade_evaluation:
+                        result = await self._cascade_evaluate(temp_file_path)
+                    else:
+                        result = await self._direct_evaluate(temp_file_path)
+                finally:
+                    evaluation_duration = time.time() - evaluation_start_time
+                    logger.info(f"[{program_id[:8]}] Program evaluation finished in {evaluation_duration:.2f}s.")
 
                 # Process the result based on type
                 eval_result = self._process_evaluation_result(result)
@@ -626,6 +629,12 @@ class Evaluator:
                             avg_metrics[name] += value * weight
                         else:
                             avg_metrics[name] = value * weight
+
+                # Store LLM evaluation details in artifacts for the main process to log (only if database is not present)
+                # database is None when running in a worker process (parallel mode) or as a standalone tool
+                if not self.database:
+                    artifacts["llm_eval_prompt"] = prompt
+                    artifacts["llm_eval_responses"] = responses
 
                 return EvaluationResult(
                     metrics=avg_metrics,
