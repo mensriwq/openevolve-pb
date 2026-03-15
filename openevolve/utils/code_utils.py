@@ -24,11 +24,11 @@ def parse_evolve_blocks(code: str) -> List[Tuple[int, int, str]]:
     block_content = []
 
     for i, line in enumerate(lines):
-        if "# EVOLVE-BLOCK-START" in line:
+        if "EVOLVE-BLOCK-START" in line:
             in_block = True
             start_line = i
             block_content = []
-        elif "# EVOLVE-BLOCK-END" in line and in_block:
+        elif "EVOLVE-BLOCK-END" in line and in_block:
             in_block = False
             blocks.append((start_line, i, "\n".join(block_content)))
         elif in_block:

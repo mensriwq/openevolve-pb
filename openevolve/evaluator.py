@@ -44,17 +44,28 @@ class Evaluator:
         llm_ensemble: Optional[LLMEnsemble] = None,
         prompt_sampler: Optional[PromptSampler] = None,
         database: Optional[ProgramDatabase] = None,
-        suffix: Optional[str] = ".py",
+        suffix: Optional[str] = None,
+        language: str = "python",
     ):
         self.config = config
         self.evaluation_file = evaluation_file
-        self.program_suffix = suffix
+        self.language = language
+        
+        # Determine suffix based on language if not provided
+        if suffix:
+            self.program_suffix = suffix
+        else:
+            if language == "cpp" or language == "c++":
+                self.program_suffix = ".cpp"
+            else:
+                self.program_suffix = ".py"
+
         self.llm_ensemble = llm_ensemble
         self.prompt_sampler = prompt_sampler
         self.database = database
 
         # Create a task pool for parallel evaluation
-        self.task_pool = TaskPool(max_concurrency=config.parallel_evaluations)
+        self.task_pool = TaskPool(max_concurrency=self.config.parallel_evaluations)
 
         # Set up evaluation function if file exists
         self._load_evaluation_function()
@@ -62,7 +73,7 @@ class Evaluator:
         # Pending artifacts storage for programs
         self._pending_artifacts: Dict[str, Dict[str, Union[str, bytes]]] = {}
 
-        logger.info(f"Initialized evaluator with {evaluation_file}")
+        logger.info(f"Initialized evaluator with {self.evaluation_file}")
 
     def _load_evaluation_function(self) -> None:
         """Load the evaluation function from the evaluation file"""

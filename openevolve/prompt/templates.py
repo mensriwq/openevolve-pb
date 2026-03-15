@@ -11,8 +11,8 @@ from typing import Dict, List, Optional, Union, Any
 logger = logging.getLogger(__name__)
 
 # Base system message template for evolution
-BASE_SYSTEM_TEMPLATE = """You are an expert software developer tasked with iteratively improving a codebase.
-Your job is to analyze the current program and suggest improvements based on feedback from previous attempts.
+BASE_SYSTEM_TEMPLATE = """You are an expert software developer tasked with iteratively improving a codebase in {language}.
+Your job is to analyze the current {language} program and suggest improvements based on feedback from previous attempts.
 Focus on making targeted changes that will increase the program's performance metrics.
 """
 
@@ -35,7 +35,7 @@ DIFF_USER_TEMPLATE = """# Current Program Information
 ```
 
 # Task
-Suggest improvements to the program that will lead to better performance on the specified metrics.
+Suggest improvements to the {language} program that will lead to better performance on the specified metrics.
 
 You MUST use the exact SEARCH/REPLACE diff format shown below to indicate changes:
 
@@ -144,7 +144,7 @@ EVALUATION_TEMPLATE = """Evaluate the following code on a scale of 0.0 to 1.0 fo
 For each metric, provide a score between 0.0 and 1.0, where 1.0 is best.
 
 Code to evaluate:
-```python
+```{language}
 {current_program}
 ```
 
@@ -226,8 +226,12 @@ class TemplateManager:
             return f"[Missing fragment: {name}]"
         try:
             return self.fragments[name].format(**kwargs)
-        except KeyError as e:
+        except (KeyError, IndexError) as e:
+            # Handle cases where formatting fails due to missing keys or positional args
             return f"[Fragment formatting error: {e}]"
+        except Exception as e:
+            # Catch-all for other formatting errors
+            return f"[Fragment formatting error: {type(e).__name__}: {e}]"
 
     def add_template(self, template_name: str, template: str) -> None:
         """Add or update a template"""

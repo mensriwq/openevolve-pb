@@ -108,6 +108,9 @@ class PromptSampler:
             if system_message in self.template_manager.templates:
                 system_message = self.template_manager.get_template(system_message)
 
+        # Replace language placeholder in system message safely
+        system_message = system_message.replace("{language}", language)
+
         if self.config.programs_as_changes_description:
             if self.config.system_message_changes_description:
                 system_message_changes_description = self.config.system_message_changes_description.strip()
@@ -146,6 +149,11 @@ class PromptSampler:
         fitness_score = get_fitness_score(program_metrics, feature_dimensions)
         feature_coords = format_feature_coordinates(program_metrics, feature_dimensions)
 
+        # Get language-specific examples from fragments
+        diff_example = self.template_manager.get_fragment(f"diff_example_{language}")
+        if "[Missing fragment" in diff_example:
+            diff_example = self.template_manager.get_fragment("diff_example_python")
+
         # Format the final user message
         user_message = user_template.format(
             metrics=metrics_str,
@@ -157,6 +165,7 @@ class PromptSampler:
             current_program=current_program,
             language=language,
             artifacts=artifacts_section,
+            diff_example=diff_example,
             **kwargs,
         )
 

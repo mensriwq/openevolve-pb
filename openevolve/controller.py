@@ -158,6 +158,7 @@ class OpenEvolve:
             self.evaluator_prompt_sampler,
             database=self.database,
             suffix=Path(self.initial_program_path).suffix,
+            language=self.config.language,
         )
         self.evaluation_file = evaluation_file
 

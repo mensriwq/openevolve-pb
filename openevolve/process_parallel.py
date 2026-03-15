@@ -128,6 +128,7 @@ def _lazy_init_worker_components():
             evaluator_prompt,
             database=None,  # No shared database in worker
             suffix=getattr(_worker_config, "file_suffix", ".py"),
+            language=_worker_config.language,
         )
 
 
