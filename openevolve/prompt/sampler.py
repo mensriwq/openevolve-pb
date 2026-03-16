@@ -551,16 +551,16 @@ class PromptSampler:
                 and self.config.include_changes_under_chars
                 and len(changes) < self.config.include_changes_under_chars
             ):
-                features.append(self.template_manager.get_fragment("inspiration_changes_prefix").format(changes=changes))
+                features.append(self.template_manager.get_fragment("inspiration_changes_prefix", changes=changes))
 
         # Analyze metrics for standout characteristics
         metrics = program.get("metrics", {})
         for metric_name, value in metrics.items():
             if isinstance(value, (int, float)):
                 if value >= 0.9:
-                    features.append(f"{self.template_manager.get_fragment('inspiration_metrics_excellent').format(metric_name=metric_name, value=value)}")
+                    features.append(self.template_manager.get_fragment("inspiration_metrics_excellent", metric_name=metric_name, value=value))
                 elif value <= 0.3:
-                    features.append(f"{self.template_manager.get_fragment('inspiration_metrics_alternative').format(metric_name=metric_name)}")
+                    features.append(self.template_manager.get_fragment("inspiration_metrics_alternative", metric_name=metric_name))
 
         # Code-based features (simple heuristics)
         code = program.get("code", "")
@@ -586,7 +586,7 @@ class PromptSampler:
         # Default if no specific features found
         if not features:
             program_type = self._determine_program_type(program)
-            features.append(self.template_manager.get_fragment("inspiration_no_features_postfix").format(program_type=program_type))
+            features.append(self.template_manager.get_fragment("inspiration_no_features_postfix", program_type=program_type))
 
         # Use num_top_programs as limit for features (similar to how we limit programs)
         feature_limit = self.config.num_top_programs
